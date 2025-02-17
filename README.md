@@ -1,6 +1,6 @@
 # ScreenshotOne MCP Server
 
-Implementation of an MCP server for [ScreenshotOne](https://screenshotone.com).
+Implementation of an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server for [ScreenshotOne](https://screenshotone.com).
 
 ## Tools
 
