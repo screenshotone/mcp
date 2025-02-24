@@ -48,4 +48,4 @@ SCREENSHOTONE_API_KEY=your_api_key && node build/index.js
 
 ## License
 
-`ScreenshotOne MCP Server` is licensed [LICENSE](under the MIT License).
+`ScreenshotOne MCP Server` is licensed [under the MIT License](LICENSE).
