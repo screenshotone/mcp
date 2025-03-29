@@ -19,7 +19,7 @@ An official implementation of an [MCP (Model Context Protocol)](https://modelcon
 Always install dependencies and build it first:
 
 ```bash
-npm run install && npm run build
+npm install && npm run build
 ```
 
 ### Get your ScreenshotOne API key
