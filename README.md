@@ -4,6 +4,10 @@ An official implementation of an [MCP (Model Context Protocol)](https://modelcon
 
 [A few more words about why it was built and some thoughts about the future of MCP](https://screenshotone.com/blog/mcp-server/).
 
+<a href="https://glama.ai/mcp/servers/nq85q0596a">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/nq85q0596a/badge" alt="ScreenshotOne Server MCP server" />
+</a>
+
 ## Tools
 
 -   `render-website-screenshot`: Render a screenshot of a website and returns it as an image.
@@ -15,7 +19,7 @@ An official implementation of an [MCP (Model Context Protocol)](https://modelcon
 Always install dependencies and build it first:
 
 ```bash
-npm run install && npm run build
+npm install && npm run build
 ```
 
 ### Get your ScreenshotOne API key
