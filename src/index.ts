@@ -7,11 +7,14 @@ const apiKey = process.env.SCREENSHOTONE_API_KEY!;
 
 const server = new McpServer({
     name: "screenshotone",
-    description: "Render website screenshots of any website and get them as images.",
+    description:
+        "Render website screenshots of any website and get them as images.",
     version: "1.0.0",
 });
 
-async function makeScreenshotOneRequest<T>(url: string): Promise<T | { error: string }> {
+async function makeScreenshotOneRequest<T>(
+    url: string
+): Promise<T | { error: string }> {
     try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -33,11 +36,26 @@ server.tool(
     "Render a screenshot of a website and returns it as an image.",
     {
         url: z.string().url().describe("URL of the website to screenshot"),
+        block_banners: z
+            .boolean()
+            .default(true)
+            .describe("Block cookie, GDPR, and other banners and popups"),
+        block_ads: z.boolean().default(true).describe("Block ads"),
+        image_quality: z
+            .number()
+            .min(1)
+            .max(100)
+            .default(80)
+            .describe("Image quality"),
+        full_page: z
+            .boolean()
+            .default(false)
+            .describe("Render the full page screenshot of the website"),
     },
-    async ({ url }) => {
+    async ({ url, block_banners, block_ads, image_quality, full_page }) => {
         const screenshotUrl = `${SCREENSHOTONE_BASE_URL}/take?url=${encodeURIComponent(
             url
-        )}&format=jpeg&image_quality=80&access_key=${apiKey}`;
+        )}&format=jpeg&image_quality=${image_quality}&access_key=${apiKey}&block_cookie_banners=${block_banners}&block_banners_by_heuristics=${block_banners}&block_ads=${block_ads}&full_page=${full_page}`;
         const screenshot = await makeScreenshotOneRequest<ArrayBuffer>(
             screenshotUrl
         );
