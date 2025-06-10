@@ -33,7 +33,7 @@ async function makeScreenshotOneRequest<T>(
 
 server.tool(
     "render-website-screenshot",
-    "Render a screenshot of a website and returns it as an image.",
+    "Renders a screenshot of a website and returns it as an image or a JSON with the cache URL (preferred for full-page screenshots).",    
     {
         url: z.string().url().describe("URL of the website to screenshot"),
         block_banners: z
@@ -51,11 +51,42 @@ server.tool(
             .boolean()
             .default(false)
             .describe("Render the full page screenshot of the website"),
+        response_type: z
+            .enum(["json", "by_format"])
+            .default("by_format")
+            .describe(
+                "Response type: JSON (when the cache URL is needed) or the image itself"
+            ),
+        cache: z
+            .boolean()
+            .default(false)
+            .describe("Cache the screenshot to get the cache URL"),
+        cache_key: z
+            .string()
+            .regex(/^[a-zA-Z0-9]+$/)
+            .optional()
+            .describe(
+                "Cache key to generate a new cache URL for each screenshot, e.g. timestamp"
+            ),
     },
-    async ({ url, block_banners, block_ads, image_quality, full_page }) => {
-        const screenshotUrl = `${SCREENSHOTONE_BASE_URL}/take?url=${encodeURIComponent(
+    async ({
+        url,
+        block_banners,
+        block_ads,
+        image_quality,
+        full_page,
+        response_type,
+        cache,
+        cache_key,
+    }) => {
+        let screenshotUrl = `${SCREENSHOTONE_BASE_URL}/take?url=${encodeURIComponent(
             url
-        )}&format=jpeg&image_quality=${image_quality}&access_key=${apiKey}&block_cookie_banners=${block_banners}&block_banners_by_heuristics=${block_banners}&block_ads=${block_ads}&full_page=${full_page}`;
+        )}&response_type=${response_type}&cache=${cache}&format=jpeg&image_quality=${image_quality}&access_key=${apiKey}&block_cookie_banners=${block_banners}&block_banners_by_heuristics=${block_banners}&block_ads=${block_ads}&full_page=${full_page}`;
+
+        if (cache && cache_key) {
+            screenshotUrl += `&cache_key=${cache_key}`;
+        }
+
         const screenshot = await makeScreenshotOneRequest<ArrayBuffer>(
             screenshotUrl
         );
