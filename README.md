@@ -47,7 +47,7 @@ Add the following to your `~/Library/Application\ Support/Claude/claude_desktop_
 ### Standalone or for other projects
 
 ```bash
-SCREENSHOTONE_API_KEY=your_api_key && node build/index.js
+SCREENSHOTONE_API_KEY=your_api_key node build/index.js
 ```
 
 ## License

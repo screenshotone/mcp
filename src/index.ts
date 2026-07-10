@@ -1,9 +1,29 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
 const SCREENSHOTONE_BASE_URL = "https://api.screenshotone.com";
-const apiKey = process.env.SCREENSHOTONE_API_KEY!;
+
+export type ScreenshotOptions = {
+    url: string;
+    block_banners: boolean;
+    block_ads: boolean;
+    image_quality: number;
+    full_page: boolean;
+    response_type: "json" | "by_format";
+    cache: boolean;
+    cache_key?: string;
+};
+
+function getApiKey(): string {
+    const apiKey = process.env.SCREENSHOTONE_API_KEY;
+    if (!apiKey) {
+        throw new Error("SCREENSHOTONE_API_KEY is required");
+    }
+
+    return apiKey;
+}
 
 const server = new McpServer({
     name: "screenshotone",
@@ -12,11 +32,48 @@ const server = new McpServer({
     version: "1.0.0",
 });
 
-async function makeScreenshotOneRequest<T>(
-    url: string
+export function buildScreenshotUrl({
+    url,
+    block_banners,
+    block_ads,
+    image_quality,
+    full_page,
+    response_type,
+    cache,
+    cache_key,
+}: ScreenshotOptions): string {
+    const screenshotUrl = new URL("/take", SCREENSHOTONE_BASE_URL);
+    screenshotUrl.searchParams.set("url", url);
+    screenshotUrl.searchParams.set("response_type", response_type);
+    screenshotUrl.searchParams.set("cache", cache.toString());
+    screenshotUrl.searchParams.set("format", "jpeg");
+    screenshotUrl.searchParams.set("image_quality", image_quality.toString());
+    screenshotUrl.searchParams.set("block_cookie_banners", block_banners.toString());
+    screenshotUrl.searchParams.set(
+        "block_banners_by_heuristics",
+        block_banners.toString()
+    );
+    screenshotUrl.searchParams.set("block_ads", block_ads.toString());
+    screenshotUrl.searchParams.set("full_page", full_page.toString());
+
+    if (cache && cache_key) {
+        screenshotUrl.searchParams.set("cache_key", cache_key);
+    }
+
+    return screenshotUrl.toString();
+}
+
+export async function makeScreenshotOneRequest<T>(
+    url: string,
+    apiKey: string,
+    fetchFn: typeof fetch = fetch
 ): Promise<T | { error: string }> {
     try {
-        const response = await fetch(url);
+        const response = await fetchFn(url, {
+            headers: {
+                "X-Access-Key": apiKey,
+            },
+        });
         if (!response.ok) {
             return {
                 error: `Failed to render a screenshot status: ${response.status}`,
@@ -79,16 +136,20 @@ server.tool(
         cache,
         cache_key,
     }) => {
-        let screenshotUrl = `${SCREENSHOTONE_BASE_URL}/take?url=${encodeURIComponent(
-            url
-        )}&response_type=${response_type}&cache=${cache}&format=jpeg&image_quality=${image_quality}&access_key=${apiKey}&block_cookie_banners=${block_banners}&block_banners_by_heuristics=${block_banners}&block_ads=${block_ads}&full_page=${full_page}`;
-
-        if (cache && cache_key) {
-            screenshotUrl += `&cache_key=${cache_key}`;
-        }
+        const screenshotUrl = buildScreenshotUrl({
+            url,
+            block_banners,
+            block_ads,
+            image_quality,
+            full_page,
+            response_type,
+            cache,
+            cache_key,
+        });
 
         const screenshot = await makeScreenshotOneRequest<ArrayBuffer>(
-            screenshotUrl
+            screenshotUrl,
+            getApiKey()
         );
 
         if ("error" in screenshot) {
@@ -120,7 +181,9 @@ async function main() {
     console.error("ScreenshotOneMCP Server running on stdio");
 }
 
-main().catch((error) => {
-    console.error("Fatal error in main():", error);
-    process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    main().catch((error) => {
+        console.error("Fatal error in main():", error);
+        process.exit(1);
+    });
+}
