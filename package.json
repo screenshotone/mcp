@@ -1,19 +1,22 @@
 {
   "name": "screenshotone-mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Render website screenshots of any website and get them as images.",
   "main": "build/index.js",
   "type": "module",
   "scripts": {
+    "clean": "node -e \"require('fs').rmSync('build', { recursive: true, force: true })\"",
+    "prebuild": "npm run clean",
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "pretest": "npm run clean",
     "test": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\" && node --test"
   },
   "keywords": [],
   "author": "Dmytro Krasun <dmytro@screenshotone.com>",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.5.0",
-    "zod": "^3.24.2"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
@@ -23,6 +26,7 @@
     "screenshot": "./build/index.js"
   },
   "files": [
-    "build"
+    "build",
+    "README.md"
   ]
 }

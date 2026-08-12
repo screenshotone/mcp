@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
     buildScreenshotUrl,
+    getUsage,
+    MAX_API_RESPONSE_BYTES,
     makeScreenshotOneRequest,
 } from "../build/index.js";
 
@@ -48,4 +50,40 @@ test("sends the API key with X-Access-Key header", async () => {
     assert.equal(capturedHeaders.get("X-Access-Key"), apiKey);
     assert.ok(response instanceof ArrayBuffer);
     assert.deepEqual([...new Uint8Array(response)], [1, 2, 3]);
+});
+
+test("gets usage with the API key header and no query credential", async () => {
+    let capturedUrl;
+    let capturedHeaders;
+
+    const response = await getUsage(
+        apiKey,
+        "https://api.screenshotone.com",
+        async (url, init) => {
+            capturedUrl = url;
+            capturedHeaders = new Headers(init?.headers);
+            return Response.json({ total: 100, used: 1, available: 99 });
+        }
+    );
+
+    assert.equal(capturedUrl, "https://api.screenshotone.com/usage");
+    assert.equal(capturedUrl.includes(apiKey), false);
+    assert.equal(capturedHeaders.get("X-Access-Key"), apiKey);
+    assert.equal(response.ok, true);
+});
+
+test("rejects oversized API responses without buffering them", async () => {
+    const response = await getUsage(
+        apiKey,
+        "https://api.screenshotone.com",
+        async () =>
+            new Response(new Uint8Array([1]), {
+                headers: {
+                    "Content-Length": String(MAX_API_RESPONSE_BYTES + 1),
+                },
+            })
+    );
+
+    assert.equal(response.ok, false);
+    assert.match(response.error, /exceeds/);
 });
