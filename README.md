@@ -10,7 +10,8 @@ An official implementation of an [MCP (Model Context Protocol)](https://modelcon
 
 ## Tools
 
--   `render-website-screenshot`: Render a screenshot of a website and returns it as an image.
+-   `render-website-screenshot`: Render a website screenshot and return an image or cached response.
+-   `get-usage`: Get ScreenshotOne API quota and concurrency usage.
 
 ## Usage
 
