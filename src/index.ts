@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import {
     arrayBufferToBase64,
@@ -71,7 +72,7 @@ export function createCliServer() {
     const server = new McpServer({
         name: "screenshotone",
         description: "Use the ScreenshotOne API from an MCP client.",
-        version: "1.1.0",
+        version: "1.1.1",
     });
 
     server.tool(
@@ -147,7 +148,17 @@ async function main() {
     console.error("ScreenshotOne MCP server running on stdio");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+function isMainModule() {
+    if (!process.argv[1]) return false;
+
+    try {
+        return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+    } catch {
+        return false;
+    }
+}
+
+if (isMainModule()) {
     main().catch((error) => {
         console.error("Fatal error in main():", error);
         process.exit(1);

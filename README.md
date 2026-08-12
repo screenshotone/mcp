@@ -4,6 +4,8 @@ An official implementation of an [MCP (Model Context Protocol)](https://modelcon
 
 [A few more words about why it was built and some thoughts about the future of MCP](https://screenshotone.com/blog/mcp-server/).
 
+ScreenshotOne also offers an official hosted MCP server. See the [ScreenshotOne MCP integration](https://screenshotone.com/integrations/mcp/) for setup instructions and the latest updates.
+
 <a href="https://glama.ai/mcp/servers/nq85q0596a">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/nq85q0596a/badge" alt="ScreenshotOne Server MCP server" />
 </a>
@@ -27,6 +29,14 @@ npm install && npm run build
 
 Sign up at [ScreenshotOne](https://screenshotone.com) and get your API key.
 
+### Run with npx
+
+Run the CLI directly from the npm package without cloning the repository:
+
+```bash
+SCREENSHOTONE_API_KEY=your_api_key npx --yes @screenshotone/mcp
+```
+
 ### With Claude for Desktop
 
 Add the following to your `~/Library/Application\ Support/Claude/claude_desktop_config.json`:
@@ -35,8 +45,8 @@ Add the following to your `~/Library/Application\ Support/Claude/claude_desktop_
 {
     "mcpServers": {
         "screenshotone": {
-            "command": "node",
-            "args": ["path/to/screenshotone/mcp/build/index.js"],
+            "command": "npx",
+            "args": ["--yes", "@screenshotone/mcp"],
             "env": {
                 "SCREENSHOTONE_API_KEY": "<your api key>"
             }
