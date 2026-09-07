@@ -9,9 +9,29 @@ export type ScreenshotOptions = {
     block_ads: boolean;
     image_quality: number;
     full_page: boolean;
-    response_type: "json" | "by_format";
-    cache: boolean;
-    cache_key?: string;
+    full_page_slices?: boolean;
+    metadata_content?: boolean;
+    metadata_content_format?: "html" | "markdown";
+};
+
+export type ScreenshotContent = {
+    url: string;
+    expires: string;
+    format?: "html" | "markdown";
+};
+
+export type ScreenshotSlice = {
+    index: number;
+    offset_y: number;
+    width: number;
+    height: number;
+    url: string;
+};
+
+export type ScreenshotResult = {
+    url: string;
+    content?: ScreenshotContent;
+    slices?: ScreenshotSlice[];
 };
 
 export type ApiResponse =
@@ -76,16 +96,16 @@ export function buildScreenshotUrl(
         block_ads,
         image_quality,
         full_page,
-        response_type,
-        cache,
-        cache_key,
+        full_page_slices = false,
+        metadata_content = false,
+        metadata_content_format,
     }: ScreenshotOptions,
     apiBaseUrl = SCREENSHOTONE_API_BASE_URL
 ): string {
     const screenshotUrl = new URL("/take", apiBaseUrl);
     screenshotUrl.searchParams.set("url", url);
-    screenshotUrl.searchParams.set("response_type", response_type);
-    screenshotUrl.searchParams.set("cache", cache.toString());
+    screenshotUrl.searchParams.set("response_type", "json");
+    screenshotUrl.searchParams.set("cache", "false");
     screenshotUrl.searchParams.set("format", "jpeg");
     screenshotUrl.searchParams.set("image_quality", image_quality.toString());
     screenshotUrl.searchParams.set(
@@ -98,12 +118,33 @@ export function buildScreenshotUrl(
     );
     screenshotUrl.searchParams.set("block_ads", block_ads.toString());
     screenshotUrl.searchParams.set("full_page", full_page.toString());
-
-    if (cache && cache_key) {
-        screenshotUrl.searchParams.set("cache_key", cache_key);
+    screenshotUrl.searchParams.set(
+        "full_page_slices",
+        full_page_slices.toString()
+    );
+    screenshotUrl.searchParams.set(
+        "metadata_content",
+        metadata_content.toString()
+    );
+    if (metadata_content_format) {
+        screenshotUrl.searchParams.set(
+            "metadata_content_format",
+            metadata_content_format
+        );
     }
 
     return screenshotUrl.toString();
+}
+
+export function buildMarkdownUrl(
+    url: string,
+    apiBaseUrl = SCREENSHOTONE_API_BASE_URL
+): string {
+    const markdownUrl = new URL("/take", apiBaseUrl);
+    markdownUrl.searchParams.set("url", url);
+    markdownUrl.searchParams.set("format", "markdown");
+    markdownUrl.searchParams.set("response_type", "by_format");
+    return markdownUrl.toString();
 }
 
 export async function makeApiRequest(
@@ -137,7 +178,7 @@ export async function makeApiRequest(
         if (error instanceof ResponseTooLargeError) {
             return {
                 ok: false,
-                error: `ScreenshotOne API response exceeds ${MAX_API_RESPONSE_BYTES} bytes. Enable caching and request a JSON response to receive a cache URL instead.`,
+                error: `ScreenshotOne API response exceeds ${MAX_API_RESPONSE_BYTES} bytes.`,
             };
         }
         const message = error instanceof Error ? error.message : String(error);
@@ -174,6 +215,15 @@ export async function takeScreenshot(
     );
 }
 
+export async function extractWebsiteMarkdown(
+    url: string,
+    apiKey: string,
+    apiBaseUrl = SCREENSHOTONE_API_BASE_URL,
+    fetchFn: typeof fetch = fetch
+) {
+    return makeApiRequest(buildMarkdownUrl(url, apiBaseUrl), apiKey, fetchFn);
+}
+
 export async function getUsage(
     apiKey: string,
     apiBaseUrl = SCREENSHOTONE_API_BASE_URL,
@@ -190,14 +240,95 @@ export function decodeText(body: ArrayBuffer) {
     return new TextDecoder().decode(body);
 }
 
-export function arrayBufferToBase64(body: ArrayBuffer) {
-    const bytes = new Uint8Array(body);
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-        binary += String.fromCharCode(
-            ...bytes.subarray(offset, offset + chunkSize)
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+function isHttpUrl(value: unknown): value is string {
+    if (typeof value !== "string") return false;
+
+    try {
+        return ["http:", "https:"].includes(new URL(value).protocol);
+    } catch {
+        return false;
+    }
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function invalidScreenshotResponse(): Error {
+    return new Error("ScreenshotOne returned an invalid screenshot response.");
+}
+
+export function parseScreenshotResult(body: ArrayBuffer): ScreenshotResult {
+    let value: unknown;
+    try {
+        value = JSON.parse(decodeText(body));
+    } catch {
+        throw new Error("ScreenshotOne returned an invalid JSON response.");
+    }
+
+    if (!isObject(value) || !isHttpUrl(value.screenshot_url)) {
+        throw new Error(
+            "ScreenshotOne response did not include a valid screenshot URL."
         );
     }
-    return btoa(binary);
+
+    const result: ScreenshotResult = { url: value.screenshot_url };
+
+    if (value.content !== undefined) {
+        if (
+            !isObject(value.content) ||
+            !isHttpUrl(value.content.url) ||
+            typeof value.content.expires !== "string" ||
+            (value.content.format !== undefined &&
+                value.content.format !== "html" &&
+                value.content.format !== "markdown")
+        ) {
+            throw invalidScreenshotResponse();
+        }
+
+        result.content = {
+            url: value.content.url,
+            expires: value.content.expires,
+        };
+        if (value.content.format) {
+            result.content.format = value.content.format;
+        }
+    }
+
+    if (value.slices !== undefined) {
+        if (!Array.isArray(value.slices)) {
+            throw invalidScreenshotResponse();
+        }
+
+        result.slices = value.slices.map((slice) => {
+            if (
+                !isObject(slice) ||
+                !isNonNegativeInteger(slice.index) ||
+                !isNonNegativeInteger(slice.offset_y) ||
+                !isPositiveInteger(slice.width) ||
+                !isPositiveInteger(slice.height) ||
+                !isHttpUrl(slice.url)
+            ) {
+                throw invalidScreenshotResponse();
+            }
+
+            return {
+                index: slice.index,
+                offset_y: slice.offset_y,
+                width: slice.width,
+                height: slice.height,
+                url: slice.url,
+            };
+        });
+    }
+
+    return result;
 }
