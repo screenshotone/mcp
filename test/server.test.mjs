@@ -76,6 +76,11 @@ test("exposes screenshot and Markdown tools with their documented results", asyn
             ({ name }) => name === "render-website-screenshot"
         );
         assert.ok(screenshotTool);
+        assert.deepEqual(screenshotTool.annotations, {
+            readOnlyHint: true,
+            destructiveHint: false,
+            openWorldHint: true,
+        });
         assert.deepEqual(
             Object.keys(screenshotTool.inputSchema.properties ?? {}).sort(),
             [
@@ -98,10 +103,23 @@ test("exposes screenshot and Markdown tools with their documented results", asyn
             ({ name }) => name === "extract-website-markdown"
         );
         assert.ok(markdownTool);
+        assert.deepEqual(markdownTool.annotations, {
+            readOnlyHint: true,
+            destructiveHint: false,
+            openWorldHint: true,
+        });
         assert.deepEqual(
             Object.keys(markdownTool.inputSchema.properties ?? {}),
             ["url"]
         );
+
+        const usageTool = tools.tools.find(({ name }) => name === "get-usage");
+        assert.ok(usageTool);
+        assert.deepEqual(usageTool.annotations, {
+            readOnlyHint: true,
+            destructiveHint: false,
+            openWorldHint: true,
+        });
 
         const invalidSlicesResult = await client.callTool({
             name: "render-website-screenshot",
