@@ -6,7 +6,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 import { createCliServer } from "../build/index.js";
 
-test("exposes screenshot and Markdown tools with their documented results", async () => {
+test("exposes all tools with their documented structured results", async () => {
     const originalApiKey = process.env.SCREENSHOTONE_API_KEY;
     const originalFetch = globalThis.fetch;
     const [clientTransport, serverTransport] =
@@ -21,6 +21,19 @@ test("exposes screenshot and Markdown tools with their documented results", asyn
             new Headers(init?.headers).get("X-Access-Key"),
             "test_access_key"
         );
+
+        if (requestUrl.pathname === "/usage") {
+            return Response.json({
+                total: 10_000,
+                available: 950,
+                used: 9_050,
+                concurrency: {
+                    limit: 20,
+                    remaining: 18,
+                    reset: 1_783_000_000_000_000_000,
+                },
+            });
+        }
 
         if (requestUrl.searchParams.get("format") === "markdown") {
             assert.deepEqual([...requestUrl.searchParams.keys()].sort(), [
@@ -112,6 +125,10 @@ test("exposes screenshot and Markdown tools with their documented results", asyn
             Object.keys(markdownTool.inputSchema.properties ?? {}),
             ["url"]
         );
+        assert.deepEqual(
+            Object.keys(markdownTool.outputSchema?.properties ?? {}),
+            ["markdown"]
+        );
 
         const usageTool = tools.tools.find(({ name }) => name === "get-usage");
         assert.ok(usageTool);
@@ -120,6 +137,10 @@ test("exposes screenshot and Markdown tools with their documented results", asyn
             destructiveHint: false,
             openWorldHint: true,
         });
+        assert.deepEqual(
+            Object.keys(usageTool.outputSchema?.properties ?? {}).sort(),
+            ["available", "concurrency", "total", "used"]
+        );
 
         const invalidSlicesResult = await client.callTool({
             name: "render-website-screenshot",
@@ -190,6 +211,31 @@ test("exposes screenshot and Markdown tools with their documented results", asyn
             {
                 type: "text",
                 text: "# Example Domain\n\nExtracted content.",
+            },
+        ]);
+        assert.deepEqual(markdownResult.structuredContent, {
+            markdown: "# Example Domain\n\nExtracted content.",
+        });
+
+        const usageResult = await client.callTool({
+            name: "get-usage",
+            arguments: {},
+        });
+        const expectedUsageResult = {
+            total: 10_000,
+            available: 950,
+            used: 9_050,
+            concurrency: {
+                limit: 20,
+                remaining: 18,
+                reset: 1_783_000_000_000_000_000,
+            },
+        };
+        assert.deepEqual(usageResult.structuredContent, expectedUsageResult);
+        assert.deepEqual(usageResult.content, [
+            {
+                type: "text",
+                text: JSON.stringify(expectedUsageResult, null, 2),
             },
         ]);
     } finally {

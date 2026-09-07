@@ -12,6 +12,7 @@ import {
     getUsage,
     makeScreenshotOneRequest,
     parseScreenshotResult,
+    parseUsageResult,
     takeScreenshot,
     type ScreenshotOptions,
 } from "./core.js";
@@ -24,8 +25,10 @@ export {
     MAX_API_RESPONSE_BYTES,
     makeScreenshotOneRequest,
     parseScreenshotResult,
+    parseUsageResult,
     type ScreenshotOptions,
     type ScreenshotResult,
+    type UsageResult,
 } from "./core.js";
 
 const HTTP_URL = z
@@ -118,6 +121,46 @@ const MARKDOWN_INPUT = z.object({
     url: HTTP_URL.describe("URL of the website to extract as Markdown"),
 });
 
+const MARKDOWN_OUTPUT = z.object({
+    markdown: z
+        .string()
+        .describe("Cleaned Markdown extracted from the rendered website"),
+});
+
+const USAGE_OUTPUT = z.object({
+    total: z
+        .number()
+        .int()
+        .nonnegative()
+        .describe("Requests allowed in the current billing plan period"),
+    available: z
+        .number()
+        .int()
+        .nonnegative()
+        .describe("Requests remaining in the current billing plan period"),
+    used: z
+        .number()
+        .int()
+        .nonnegative()
+        .describe("Successfully executed requests in the current period"),
+    concurrency: z.object({
+        limit: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe("Requests allowed in the current one-minute bucket"),
+        remaining: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe("Requests remaining in the current one-minute bucket"),
+        reset: z
+            .number()
+            .nonnegative()
+            .describe("Bucket reset time as a Unix timestamp in nanoseconds"),
+    }),
+});
+
 function getApiKey() {
     const apiKey = process.env.SCREENSHOTONE_API_KEY;
     if (!apiKey) throw new Error("SCREENSHOTONE_API_KEY is required");
@@ -196,6 +239,7 @@ export function createCliServer() {
                 openWorldHint: true,
             },
             inputSchema: MARKDOWN_INPUT,
+            outputSchema: MARKDOWN_OUTPUT,
         },
         async ({ url }) => {
             const response = await extractWebsiteMarkdown(url, getApiKey());
@@ -205,10 +249,10 @@ export function createCliServer() {
                     content: [{ type: "text", text: response.error }],
                 };
             }
+            const markdown = decodeText(response.body);
             return {
-                content: [
-                    { type: "text", text: decodeText(response.body) },
-                ],
+                content: [{ type: "text", text: markdown }],
+                structuredContent: { markdown },
             };
         }
     );
@@ -224,6 +268,7 @@ export function createCliServer() {
                 destructiveHint: false,
                 openWorldHint: true,
             },
+            outputSchema: USAGE_OUTPUT,
         },
         async () => {
             const response = await getUsage(getApiKey());
@@ -233,8 +278,28 @@ export function createCliServer() {
                     content: [{ type: "text", text: response.error }],
                 };
             }
+            let result;
+            try {
+                result = parseUsageResult(response.body);
+            } catch (error) {
+                return {
+                    isError: true,
+                    content: [
+                        {
+                            type: "text",
+                            text:
+                                error instanceof Error
+                                    ? error.message
+                                    : "ScreenshotOne returned an invalid response.",
+                        },
+                    ],
+                };
+            }
             return {
-                content: [{ type: "text", text: decodeText(response.body) }],
+                content: [
+                    { type: "text", text: JSON.stringify(result, null, 2) },
+                ],
+                structuredContent: result,
             };
         }
     );

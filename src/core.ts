@@ -34,6 +34,17 @@ export type ScreenshotResult = {
     slices?: ScreenshotSlice[];
 };
 
+export type UsageResult = {
+    total: number;
+    available: number;
+    used: number;
+    concurrency: {
+        limit: number;
+        remaining: number;
+        reset: number;
+    };
+};
+
 export type ApiResponse =
     | {
           ok: true;
@@ -262,6 +273,10 @@ function isPositiveInteger(value: unknown): value is number {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+function isNonNegativeNumber(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 function invalidScreenshotResponse(): Error {
     return new Error("ScreenshotOne returned an invalid screenshot response.");
 }
@@ -331,4 +346,37 @@ export function parseScreenshotResult(body: ArrayBuffer): ScreenshotResult {
     }
 
     return result;
+}
+
+export function parseUsageResult(body: ArrayBuffer): UsageResult {
+    let value: unknown;
+    try {
+        value = JSON.parse(decodeText(body));
+    } catch {
+        throw new Error("ScreenshotOne returned an invalid JSON response.");
+    }
+
+    if (
+        !isObject(value) ||
+        !isNonNegativeInteger(value.total) ||
+        !isNonNegativeInteger(value.available) ||
+        !isNonNegativeInteger(value.used) ||
+        !isObject(value.concurrency) ||
+        !isNonNegativeInteger(value.concurrency.limit) ||
+        !isNonNegativeInteger(value.concurrency.remaining) ||
+        !isNonNegativeNumber(value.concurrency.reset)
+    ) {
+        throw new Error("ScreenshotOne returned an invalid usage response.");
+    }
+
+    return {
+        total: value.total,
+        available: value.available,
+        used: value.used,
+        concurrency: {
+            limit: value.concurrency.limit,
+            remaining: value.concurrency.remaining,
+            reset: value.concurrency.reset,
+        },
+    };
 }
