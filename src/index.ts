@@ -266,7 +266,7 @@ export function createCliServer() {
             annotations: {
                 readOnlyHint: true,
                 destructiveHint: false,
-                openWorldHint: true,
+                openWorldHint: false,
             },
             outputSchema: USAGE_OUTPUT,
         },

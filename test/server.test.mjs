@@ -135,7 +135,7 @@ test("exposes all tools with their documented structured results", async () => {
         assert.deepEqual(usageTool.annotations, {
             readOnlyHint: true,
             destructiveHint: false,
-            openWorldHint: true,
+            openWorldHint: false,
         });
         assert.deepEqual(
             Object.keys(usageTool.outputSchema?.properties ?? {}).sort(),
