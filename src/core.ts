@@ -380,3 +380,197 @@ export function parseUsageResult(body: ArrayBuffer): UsageResult {
         },
     };
 }
+
+export const SCREENSHOT_FILE_FORMATS = [
+    "jpg",
+    "png",
+    "webp",
+    "gif",
+    "jp2",
+    "tiff",
+    "avif",
+    "heif",
+    "pdf",
+] as const;
+
+export type ScreenshotFileFormat = (typeof SCREENSHOT_FILE_FORMATS)[number];
+
+const SCREENSHOT_FILE_MIME_TYPES: Record<ScreenshotFileFormat, string> = {
+    jpg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    jp2: "image/jp2",
+    tiff: "image/tiff",
+    avif: "image/avif",
+    heif: "image/heif",
+    pdf: "application/pdf",
+};
+
+/** Files are base64-encoded into the tool result, which adds about a third. */
+export const MAX_SCREENSHOT_FILE_BYTES = 5 * 1024 * 1024;
+
+export type ScreenshotFileOptions = {
+    url: string;
+    format: ScreenshotFileFormat;
+    block_banners: boolean;
+    block_ads: boolean;
+    image_quality: number;
+    full_page: boolean;
+    full_page_max_height?: number;
+};
+
+export type ScreenshotFile = {
+    name: string;
+    uri: string;
+    mime_type: string;
+    size: number;
+    url: string;
+};
+
+export type ScreenshotFileResponse =
+    | { ok: true; file: ScreenshotFile; blob: string }
+    | { ok: false; error: string };
+
+export function buildScreenshotFileUrl(
+    {
+        url,
+        format,
+        block_banners,
+        block_ads,
+        image_quality,
+        full_page,
+        full_page_max_height,
+    }: ScreenshotFileOptions,
+    apiBaseUrl = SCREENSHOTONE_API_BASE_URL
+): string {
+    const screenshotUrl = new URL("/take", apiBaseUrl);
+    screenshotUrl.searchParams.set("url", url);
+    screenshotUrl.searchParams.set("response_type", "json");
+    screenshotUrl.searchParams.set("cache", "false");
+    screenshotUrl.searchParams.set("format", format);
+    screenshotUrl.searchParams.set("image_quality", image_quality.toString());
+    screenshotUrl.searchParams.set(
+        "block_cookie_banners",
+        block_banners.toString()
+    );
+    screenshotUrl.searchParams.set(
+        "block_banners_by_heuristics",
+        block_banners.toString()
+    );
+    screenshotUrl.searchParams.set("block_ads", block_ads.toString());
+    screenshotUrl.searchParams.set("full_page", full_page.toString());
+    if (full_page_max_height !== undefined) {
+        screenshotUrl.searchParams.set(
+            "full_page_max_height",
+            full_page_max_height.toString()
+        );
+    }
+    if (format === "pdf") {
+        screenshotUrl.searchParams.set("pdf_print_background", "true");
+    }
+
+    return screenshotUrl.toString();
+}
+
+export function screenshotFileName(
+    url: string,
+    format: ScreenshotFileFormat,
+    now = new Date()
+): string {
+    let host = "screenshot";
+    try {
+        host =
+            new URL(url).hostname
+                .replace(/^www\./, "")
+                .replace(/[^a-z0-9.-]/gi, "-") || host;
+    } catch {}
+    const time = now
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", "-")
+        .replaceAll(":", "");
+    return `${host}-${time}.${format}`;
+}
+
+function toBase64(bytes: Uint8Array): string {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+        binary += String.fromCharCode(
+            ...bytes.subarray(offset, offset + 0x8000)
+        );
+    }
+    return btoa(binary);
+}
+
+export async function takeScreenshotFile(
+    options: ScreenshotFileOptions,
+    apiKey: string,
+    apiBaseUrl = SCREENSHOTONE_API_BASE_URL,
+    fetchFn: typeof fetch = fetch
+): Promise<ScreenshotFileResponse> {
+    const response = await makeApiRequest(
+        buildScreenshotFileUrl(options, apiBaseUrl),
+        apiKey,
+        fetchFn
+    );
+    if (!response.ok) {
+        return { ok: false, error: response.error };
+    }
+
+    let screenshotUrl: string;
+    try {
+        screenshotUrl = parseScreenshotResult(response.body).url;
+    } catch (error) {
+        return {
+            ok: false,
+            error:
+                error instanceof Error
+                    ? error.message
+                    : "ScreenshotOne returned an invalid response.",
+        };
+    }
+
+    let body: ArrayBuffer;
+    try {
+        const file = await fetchFn(screenshotUrl, {
+            signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
+        });
+        if (!file.ok) {
+            await file.body?.cancel();
+            return {
+                ok: false,
+                error: `Downloading the rendered file failed with status ${file.status}.`,
+            };
+        }
+        body = await readBoundedBody(file, MAX_SCREENSHOT_FILE_BYTES);
+    } catch (error) {
+        if (error instanceof ResponseTooLargeError) {
+            return {
+                ok: false,
+                error:
+                    `The rendered file is larger than ${MAX_SCREENSHOT_FILE_BYTES / 1024 / 1024} MB, the limit for files returned in the result. ` +
+                    "Try format=jpg with a lower image_quality, format=pdf, full_page_max_height to limit the height of a full-page screenshot, or full_page=false. " +
+                    `The file is also available for a few hours at ${screenshotUrl}`,
+            };
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+            ok: false,
+            error: `Downloading the rendered file failed: ${message}`,
+        };
+    }
+
+    const name = screenshotFileName(options.url, options.format);
+    return {
+        ok: true,
+        file: {
+            name,
+            uri: `screenshotone://screenshots/${name}`,
+            mime_type: SCREENSHOT_FILE_MIME_TYPES[options.format],
+            size: body.byteLength,
+            url: screenshotUrl,
+        },
+        blob: toBase64(new Uint8Array(body)),
+    };
+}

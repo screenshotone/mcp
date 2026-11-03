@@ -13,13 +13,22 @@ import {
     makeScreenshotOneRequest,
     parseScreenshotResult,
     parseUsageResult,
+    SCREENSHOT_FILE_FORMATS,
     takeScreenshot,
+    takeScreenshotFile,
+    type ScreenshotFileOptions,
     type ScreenshotOptions,
 } from "./core.js";
 
 export {
     buildMarkdownUrl,
+    buildScreenshotFileUrl,
     buildScreenshotUrl,
+    MAX_SCREENSHOT_FILE_BYTES,
+    takeScreenshotFile,
+    type ScreenshotFile,
+    type ScreenshotFileFormat,
+    type ScreenshotFileOptions,
     extractWebsiteMarkdown,
     getUsage,
     MAX_API_RESPONSE_BYTES,
@@ -30,6 +39,9 @@ export {
     type ScreenshotResult,
     type UsageResult,
 } from "./core.js";
+
+const SCREENSHOT_FILE_DESCRIPTION =
+    "Renders a website screenshot or PDF and returns the file itself, embedded in the result as an MCP resource, together with a temporary URL. Use it when the user wants to save or attach the file, or when the client cannot download links (for example Harvey). Use render-website-screenshot when a temporary link is enough. Files larger than 5 MB are not returned.";
 
 const HTTP_URL = z
     .string()
@@ -117,6 +129,61 @@ const SCREENSHOT_OUTPUT = z.object({
     slices: z.array(SCREENSHOT_SLICE_OUTPUT).optional(),
 });
 
+const SCREENSHOT_FILE_INPUT = z
+    .object({
+        url: HTTP_URL.describe("URL of the website to screenshot"),
+        format: z
+            .enum(SCREENSHOT_FILE_FORMATS)
+            .default("jpg")
+            .describe(
+                "File format. Use pdf for a printable document of the page."
+            ),
+        block_banners: z
+            .boolean()
+            .default(true)
+            .describe("Block cookie, GDPR, and other banners and popups"),
+        block_ads: z.boolean().default(true).describe("Block ads"),
+        image_quality: z
+            .number()
+            .int()
+            .min(1)
+            .max(100)
+            .default(80)
+            .describe("Image quality for lossy formats such as jpg and webp"),
+        full_page: z
+            .boolean()
+            .default(false)
+            .describe("Render the full page screenshot"),
+        full_page_max_height: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe(
+                "Maximum height in pixels of a full-page screenshot. Requires full_page=true; use it to keep very long pages within the file size limit."
+            ),
+    })
+    .superRefine((value, context) => {
+        if (value.full_page_max_height !== undefined && !value.full_page) {
+            context.addIssue({
+                code: "custom",
+                path: ["full_page_max_height"],
+                message: "full_page_max_height requires full_page=true",
+            });
+        }
+    });
+
+const SCREENSHOT_FILE_OUTPUT = z.object({
+    name: z.string().describe("File name"),
+    uri: z.string().describe("URI of the file embedded in the result"),
+    mime_type: z.string().describe("MIME type of the file"),
+    size: z.number().int().nonnegative().describe("File size in bytes"),
+    url: z
+        .string()
+        .url()
+        .describe("Temporary URL of the same file, valid for a few hours"),
+});
+
 const MARKDOWN_INPUT = z.object({
     url: HTTP_URL.describe("URL of the website to extract as Markdown"),
 });
@@ -171,7 +238,7 @@ export function createCliServer() {
     const server = new McpServer({
         name: "screenshotone",
         description: "Use the ScreenshotOne API from an MCP client.",
-        version: "1.2.0",
+        version: "1.3.0",
     });
 
     server.registerTool(
@@ -223,6 +290,51 @@ export function createCliServer() {
             return {
                 content: [{ type: "text", text }],
                 structuredContent: result,
+            };
+        }
+    );
+
+    server.registerTool(
+        "render-website-screenshot-as-file",
+        {
+            title: "Render website screenshot as file",
+            description: SCREENSHOT_FILE_DESCRIPTION,
+            annotations: {
+                readOnlyHint: true,
+                destructiveHint: false,
+                openWorldHint: true,
+            },
+            inputSchema: SCREENSHOT_FILE_INPUT,
+            outputSchema: SCREENSHOT_FILE_OUTPUT,
+        },
+        async (options) => {
+            const response = await takeScreenshotFile(
+                options as ScreenshotFileOptions,
+                getApiKey()
+            );
+            if (!response.ok) {
+                return {
+                    isError: true,
+                    content: [{ type: "text", text: response.error }],
+                };
+            }
+            return {
+                content: [
+                    {
+                        type: "resource",
+                        resource: {
+                            uri: response.file.uri,
+                            mimeType: response.file.mime_type,
+                            blob: response.blob,
+                        },
+                        annotations: { audience: ["user"] },
+                    },
+                    {
+                        type: "text",
+                        text: JSON.stringify(response.file, null, 2),
+                    },
+                ],
+                structuredContent: response.file,
             };
         }
     );

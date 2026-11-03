@@ -13,6 +13,7 @@ ScreenshotOne also offers an official hosted MCP server. See the [ScreenshotOne 
 ## Tools
 
 -   `render-website-screenshot`: Render a website screenshot and return temporary screenshot, content, and slice URLs as requested.
+-   `render-website-screenshot-as-file`: Render a website screenshot or PDF and return the file itself, embedded in the response as an MCP resource, with a temporary URL.
 -   `extract-website-markdown`: Render a website and return its cleaned Markdown directly as text.
 -   `get-usage`: Get ScreenshotOne API quota and concurrency usage.
 
@@ -54,6 +55,8 @@ A successful capture returns the requested URLs as text and structured content:
 ```
 
 The URLs are temporary. The screenshot URL is available for up to four hours, while metadata content includes its exact expiration time. Download any artifact you need to keep.
+
+`render-website-screenshot-as-file` is for clients that need the file itself, for example to save or attach it, or that cannot download links. It accepts `url`, `format` (`jpg` by default, `png`, `webp`, `gif`, `jp2`, `tiff`, `avif`, `heif`, or `pdf`), `block_banners`, `block_ads`, `image_quality`, `full_page`, and `full_page_max_height` (requires `full_page=true`). It returns the file as an embedded resource (`type: "resource"` with a base64 `blob` and its MIME type) plus its name, URI, MIME type, size, and temporary URL as text and structured content. Files larger than 5 MB are not embedded; the tool returns an error that suggests a smaller format, quality, or height, and includes the temporary URL.
 
 `extract-website-markdown` accepts only `url`. It is a focused shortcut for ScreenshotOne's `format=markdown` API request and returns the resulting Markdown directly in one MCP text response. Use it when the agent needs to read or analyze page content without a screenshot.
 
