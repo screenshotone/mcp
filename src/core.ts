@@ -449,7 +449,13 @@ export function buildScreenshotFileUrl(
     screenshotUrl.searchParams.set("response_type", "json");
     screenshotUrl.searchParams.set("cache", "false");
     screenshotUrl.searchParams.set("format", format);
-    screenshotUrl.searchParams.set("image_quality", image_quality.toString());
+    // The API rejects image_quality for PDF and GIF.
+    if (format !== "pdf" && format !== "gif") {
+        screenshotUrl.searchParams.set(
+            "image_quality",
+            image_quality.toString()
+        );
+    }
     screenshotUrl.searchParams.set(
         "block_cookie_banners",
         block_banners.toString()
