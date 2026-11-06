@@ -61,10 +61,10 @@ test("extracts screenshot, content, and slice URLs from an API response", () => 
     const result = parseScreenshotResult(
         new TextEncoder().encode(
             JSON.stringify({
-                screenshot_url: "https://cache.screenshotone.com/example.jpg",
-                cache_url: "https://cache.screenshotone.com/cached.jpg",
+                screenshot_url: "https://files.screenshotonecache.com/example.jpg",
+                cache_url: "https://files.screenshotonecache.com/cached.jpg",
                 content: {
-                    url: "https://cache.screenshotone.com/example.md",
+                    url: "https://files.screenshotonecache.com/example.md",
                     expires: "Sun, 07 Sep 2026 12:00:00 GMT",
                     format: "markdown",
                 },
@@ -74,7 +74,7 @@ test("extracts screenshot, content, and slice URLs from an API response", () => 
                         offset_y: 0,
                         width: 1280,
                         height: 4000,
-                        url: "https://cache.screenshotone.com/slice-0.jpg",
+                        url: "https://files.screenshotonecache.com/slice-0.jpg",
                     },
                 ],
                 metadata: { image_size: { width: 1280, height: 720 } },
@@ -83,9 +83,9 @@ test("extracts screenshot, content, and slice URLs from an API response", () => 
     );
 
     assert.deepEqual(result, {
-        url: "https://cache.screenshotone.com/example.jpg",
+        url: "https://files.screenshotonecache.com/example.jpg",
         content: {
-            url: "https://cache.screenshotone.com/example.md",
+            url: "https://files.screenshotonecache.com/example.md",
             expires: "Sun, 07 Sep 2026 12:00:00 GMT",
             format: "markdown",
         },
@@ -95,7 +95,7 @@ test("extracts screenshot, content, and slice URLs from an API response", () => 
                 offset_y: 0,
                 width: 1280,
                 height: 4000,
-                url: "https://cache.screenshotone.com/slice-0.jpg",
+                url: "https://files.screenshotonecache.com/slice-0.jpg",
             },
         ],
     });

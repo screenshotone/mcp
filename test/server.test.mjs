@@ -62,9 +62,9 @@ test("exposes all tools with their documented structured results", async () => {
         );
 
         return Response.json({
-            screenshot_url: "https://cache.screenshotone.com/example.jpg",
+            screenshot_url: "https://files.screenshotonecache.com/example.jpg",
             content: {
-                url: "https://cache.screenshotone.com/example.md",
+                url: "https://files.screenshotonecache.com/example.md",
                 expires: "Sun, 07 Sep 2026 12:00:00 GMT",
                 format: "markdown",
             },
@@ -74,7 +74,7 @@ test("exposes all tools with their documented structured results", async () => {
                     offset_y: 0,
                     width: 1280,
                     height: 4000,
-                    url: "https://cache.screenshotone.com/slice-0.jpg",
+                    url: "https://files.screenshotonecache.com/slice-0.jpg",
                 },
             ],
         });
@@ -179,9 +179,9 @@ test("exposes all tools with their documented structured results", async () => {
             },
         });
         const expectedScreenshotResult = {
-            url: "https://cache.screenshotone.com/example.jpg",
+            url: "https://files.screenshotonecache.com/example.jpg",
             content: {
-                url: "https://cache.screenshotone.com/example.md",
+                url: "https://files.screenshotonecache.com/example.md",
                 expires: "Sun, 07 Sep 2026 12:00:00 GMT",
                 format: "markdown",
             },
@@ -191,7 +191,7 @@ test("exposes all tools with their documented structured results", async () => {
                     offset_y: 0,
                     width: 1280,
                     height: 4000,
-                    url: "https://cache.screenshotone.com/slice-0.jpg",
+                    url: "https://files.screenshotonecache.com/slice-0.jpg",
                 },
             ],
         };
