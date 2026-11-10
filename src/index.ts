@@ -11,21 +11,29 @@ import {
     extractWebsiteMarkdown,
     getUsage,
     makeScreenshotOneRequest,
+    MAX_HTML_CHARACTERS,
     parseScreenshotResult,
     parseUsageResult,
     SCREENSHOT_FILE_FORMATS,
+    takeHtmlScreenshotFile,
     takeScreenshot,
     takeScreenshotFile,
+    type HtmlScreenshotOptions,
     type ScreenshotFileOptions,
     type ScreenshotOptions,
 } from "./core.js";
 
 export {
+    buildHtmlScreenshotRequestBody,
     buildMarkdownUrl,
     buildScreenshotFileUrl,
     buildScreenshotUrl,
+    MAX_HTML_CHARACTERS,
     MAX_SCREENSHOT_FILE_BYTES,
+    takeHtmlScreenshotFile,
     takeScreenshotFile,
+    type HtmlScreenshotFile,
+    type HtmlScreenshotOptions,
     type ScreenshotFile,
     type ScreenshotFileFormat,
     type ScreenshotFileOptions,
@@ -184,6 +192,46 @@ const SCREENSHOT_FILE_OUTPUT = z.object({
         .describe("Temporary URL of the same file, valid for a few hours"),
 });
 
+const HTML_SCREENSHOT_FILE_DESCRIPTION = `Renders HTML you write or receive, such as a social card, a chart, a report or a page template, and returns the screenshot as an image you can see and analyze, together with its file name and size. Pass the HTML exactly as given, without shortening, rewriting or summarizing it. External images, fonts and stylesheets referenced by the HTML are loaded. For a page that is already online, use render-website-screenshot instead. Images larger than 5 MB are not returned.`;
+
+const HTML_SCREENSHOT_FILE_INPUT = z.object({
+    html: z
+        .string()
+        .min(1)
+        .max(MAX_HTML_CHARACTERS)
+        .describe(
+            "HTML document or fragment to render, passed exactly as given without shortening, rewriting or summarizing it"
+        ),
+    viewport_width: z
+        .number()
+        .int()
+        .min(320)
+        .max(3840)
+        .default(1280)
+        .describe(
+            "Viewport width in pixels. Use the width the HTML is designed for, for example 1200 for a social card."
+        ),
+    full_page: z
+        .boolean()
+        .default(true)
+        .describe(
+            "Render the full height of the HTML instead of only the first viewport"
+        ),
+    image_quality: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .default(80)
+        .describe("JPEG image quality"),
+});
+
+const HTML_SCREENSHOT_FILE_OUTPUT = z.object({
+    name: z.string().describe("File name"),
+    mime_type: z.string().describe("MIME type of the image"),
+    size: z.number().int().nonnegative().describe("Image size in bytes"),
+});
+
 const MARKDOWN_INPUT = z.object({
     url: HTTP_URL.describe("URL of the website to extract as Markdown"),
 });
@@ -238,7 +286,7 @@ export function createCliServer() {
     const server = new McpServer({
         name: "screenshotone",
         description: "Use the ScreenshotOne API from an MCP client.",
-        version: "1.3.0",
+        version: "1.4.0",
     });
 
     server.registerTool(
@@ -328,6 +376,47 @@ export function createCliServer() {
                             blob: response.blob,
                         },
                         annotations: { audience: ["user"] },
+                    },
+                    {
+                        type: "text",
+                        text: JSON.stringify(response.file, null, 2),
+                    },
+                ],
+                structuredContent: response.file,
+            };
+        }
+    );
+
+    server.registerTool(
+        "render-html-screenshot-as-file",
+        {
+            title: "Render HTML screenshot as file",
+            description: HTML_SCREENSHOT_FILE_DESCRIPTION,
+            annotations: {
+                readOnlyHint: true,
+                destructiveHint: false,
+                openWorldHint: true,
+            },
+            inputSchema: HTML_SCREENSHOT_FILE_INPUT,
+            outputSchema: HTML_SCREENSHOT_FILE_OUTPUT,
+        },
+        async (options) => {
+            const response = await takeHtmlScreenshotFile(
+                options as HtmlScreenshotOptions,
+                getApiKey()
+            );
+            if (!response.ok) {
+                return {
+                    isError: true,
+                    content: [{ type: "text", text: response.error }],
+                };
+            }
+            return {
+                content: [
+                    {
+                        type: "image",
+                        data: response.data,
+                        mimeType: response.file.mime_type,
                     },
                     {
                         type: "text",

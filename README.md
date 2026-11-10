@@ -14,6 +14,7 @@ ScreenshotOne also offers an official hosted MCP server. See the [ScreenshotOne 
 
 -   `render-website-screenshot`: Render a website screenshot and return temporary screenshot, content, and slice URLs as requested.
 -   `render-website-screenshot-as-file`: Render a website screenshot or PDF and return the file itself, embedded in the response as an MCP resource, with a temporary URL.
+-   `render-html-screenshot-as-file`: Render HTML you write or receive, such as a social card or a chart, and return the screenshot as an inline image the agent can see, with its file name and size.
 -   `extract-website-markdown`: Render a website and return its cleaned Markdown directly as text.
 -   `get-usage`: Get ScreenshotOne API quota and concurrency usage.
 
@@ -57,6 +58,8 @@ A successful capture returns the requested URLs as text and structured content:
 The URLs are temporary. The screenshot URL is available for up to four hours, while metadata content includes its exact expiration time. Download any artifact you need to keep.
 
 `render-website-screenshot-as-file` is for clients that need the file itself, for example to save or attach it, or that cannot download links. It accepts `url`, `format` (`jpg` by default, `png`, `webp`, `gif`, `jp2`, `tiff`, `avif`, `heif`, or `pdf`), `block_banners`, `block_ads`, `image_quality`, `full_page`, and `full_page_max_height` (requires `full_page=true`). It returns the file as an embedded resource (`type: "resource"` with a base64 `blob` and its MIME type) plus its name, URI, MIME type, size, and temporary URL as text and structured content. Files larger than 5 MB are not embedded; the tool returns an error that suggests a smaller format, quality, or height, and includes the temporary URL.
+
+`render-html-screenshot-as-file` renders HTML passed in the call, such as a social card, a chart, or a report, so the agent gets an image without running a browser. It accepts `html` (required, up to 1,000,000 characters, passed exactly as given), `viewport_width` (`320`–`3840`, defaults to `1280`; use the width the HTML is designed for), `full_page` (defaults to `true`), and `image_quality` (defaults to `80`). The HTML is sent to the API in a JSON `POST` body, and the API returns the JPEG directly, with no temporary URL. The tool returns it as an inline image (`type: "image"` with base64 `data`) plus its name, MIME type, and size as text and structured content. Images larger than 5 MB are not returned; the error suggests a lower quality or `full_page=false`.
 
 `extract-website-markdown` accepts only `url`. It is a focused shortcut for ScreenshotOne's `format=markdown` API request and returns the resulting Markdown directly in one MCP text response. Use it when the agent needs to read or analyze page content without a screenshot.
 

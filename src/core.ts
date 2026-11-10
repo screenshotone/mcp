@@ -161,13 +161,27 @@ export function buildMarkdownUrl(
 export async function makeApiRequest(
     url: string,
     apiKey: string,
-    fetchFn: typeof fetch = fetch
+    fetchFn: typeof fetch = fetch,
+    jsonBody?: Record<string, unknown>
 ): Promise<ApiResponse> {
     try {
-        const response = await fetchFn(url, {
-            headers: { "X-Access-Key": apiKey },
-            signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
-        });
+        const response = await fetchFn(
+            url,
+            jsonBody === undefined
+                ? {
+                      headers: { "X-Access-Key": apiKey },
+                      signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
+                  }
+                : {
+                      method: "POST",
+                      headers: {
+                          "X-Access-Key": apiKey,
+                          "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify(jsonBody),
+                      signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
+                  }
+        );
         if (!response.ok) {
             await response.body?.cancel();
             return {
@@ -491,12 +505,15 @@ export function screenshotFileName(
                 .replace(/^www\./, "")
                 .replace(/[^a-z0-9.-]/gi, "-") || host;
     } catch {}
-    const time = now
+    return `${host}-${fileTimestamp(now)}.${format}`;
+}
+
+function fileTimestamp(now: Date): string {
+    return now
         .toISOString()
         .slice(0, 19)
         .replace("T", "-")
         .replaceAll(":", "");
-    return `${host}-${time}.${format}`;
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -578,5 +595,83 @@ export async function takeScreenshotFile(
             url: screenshotUrl,
         },
         blob: toBase64(new Uint8Array(body)),
+    };
+}
+
+/** HTML passed inline by an AI agent; larger documents should be hosted and rendered by URL. */
+export const MAX_HTML_CHARACTERS = 1_000_000;
+
+export type HtmlScreenshotOptions = {
+    html: string;
+    viewport_width: number;
+    full_page: boolean;
+    image_quality: number;
+};
+
+export type HtmlScreenshotFile = {
+    name: string;
+    mime_type: string;
+    size: number;
+};
+
+export type HtmlScreenshotFileResponse =
+    | { ok: true; file: HtmlScreenshotFile; data: string }
+    | { ok: false; error: string };
+
+export function buildHtmlScreenshotRequestBody({
+    html,
+    viewport_width,
+    full_page,
+    image_quality,
+}: HtmlScreenshotOptions): Record<string, unknown> {
+    return {
+        html,
+        viewport_width,
+        full_page,
+        format: "jpg",
+        image_quality,
+        response_type: "by_format",
+        cache: false,
+    };
+}
+
+export async function takeHtmlScreenshotFile(
+    options: HtmlScreenshotOptions,
+    apiKey: string,
+    apiBaseUrl = SCREENSHOTONE_API_BASE_URL,
+    fetchFn: typeof fetch = fetch
+): Promise<HtmlScreenshotFileResponse> {
+    const response = await makeApiRequest(
+        new URL("/take", apiBaseUrl).toString(),
+        apiKey,
+        fetchFn,
+        buildHtmlScreenshotRequestBody(options)
+    );
+    if (!response.ok) {
+        return { ok: false, error: response.error };
+    }
+    if (response.contentType.split(";")[0].trim() !== "image/jpeg") {
+        return {
+            ok: false,
+            error: "ScreenshotOne returned an unexpected response instead of a JPEG image.",
+        };
+    }
+    if (response.body.byteLength > MAX_SCREENSHOT_FILE_BYTES) {
+        return {
+            ok: false,
+            error:
+                `The rendered image is larger than ${MAX_SCREENSHOT_FILE_BYTES / 1024 / 1024} MB, the limit for images returned in the result. ` +
+                "Try a lower image_quality or full_page=false.",
+        };
+    }
+
+    return {
+        ok: true,
+        file: {
+            name: `html-${fileTimestamp(new Date())}.jpg`,
+            mime_type: "image/jpeg",
+            size: response.body.byteLength,
+        },
+        data: toBase64(new Uint8Array(response.body)),
     };
 }
